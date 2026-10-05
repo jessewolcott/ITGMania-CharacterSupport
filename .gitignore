@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Generated locally by `fontpatch.py preview`
+fontpatch-preview.png
+preview-*.png
+
+# Never commit generated font pages or anything derived from a system font:
+# the point of this tool is that pages are built on the user's own machine
+# from fonts they already have, so no font data lives in this repository.
+_fontpatch*.png
+_fontpatch*.ini
+fontpatch-manifest.json
+*.vnfont-bak
+*.fontpatch-bak
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+fontpatch-backup/

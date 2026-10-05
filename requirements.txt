@@ -1,0 +1,7 @@
+# Required: all glyph rendering and page packing.
+Pillow>=9.0
+
+# Optional. Only used to read a source font's name table so the generated
+# .ini can record an accurate licence tag. Without it the tool still works,
+# it just omits the tag rather than guessing one from the filename.
+fonttools>=4.0
