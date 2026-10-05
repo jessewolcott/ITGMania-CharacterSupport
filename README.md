@@ -1,32 +1,247 @@
 # ITGMania-CharacterSupport
 
-A standalone patcher that adds **Vietnamese, Thai, Korean and Chinese** glyph
-coverage to StepMania / ITGmania themes, so song titles in those scripts stop
-rendering as blanks.
+**Make Vietnamese, Thai, Korean and Chinese song titles show up in ITGmania.**
 
-It generates the missing font pages **on your machine, from fonts you already
-have**, and wires them into the theme with a single import line. Nothing is
-replaced, nothing is overwritten, and `uninstall` puts everything back.
+If some of your song titles, subtitles or artists show up blank, cut off, or
+missing their accents, it isn't your simfiles: the theme's fonts just don't
+have those characters. This tool adds them using fonts already on your
+computer, and it can be undone at any time.
 
-![rendered titles](docs-preview.png)
+![song titles rendering correctly after the patch](docs-preview.png)
+
+- Works with **Simply Love** and any theme built on ITGmania's `_fallback`
+- Builds the new characters **on your PC** from fonts you already have.
+  Windows ships everything it needs
+- Changes **one line** per theme and keeps a backup. `uninstall` puts it all back
 
 ---
 
-## The problem
+## Quick start
 
-Song titles are stored as UTF-8 and the engine **never strips diacritics** —
-there is no normalisation or accent-folding anywhere in ITGmania's `src/`. What
-looks like mojibake or missing accents is almost always a bitmap font with no
-glyph for that codepoint, falling through to the blank "missing" glyph.
+> **Close ITGmania before you start.** It only reads fonts at launch.
 
-Four separate gaps, each with a different cause:
+First, get the files: on the
+[GitHub page](https://github.com/jessewolcott/ITGMania-CharacterSupport) click
+**Code → Download ZIP**, then unzip it anywhere. Or clone it:
 
-| Script | What is actually wrong |
+```
+git clone https://github.com/jessewolcott/ITGMania-CharacterSupport.git
+```
+
+Then choose one of the two paths below.
+
+### Option A: Python (adds the characters)
+
+This is the full tool. Use it to add the missing characters.
+
+1. **Install Python 3** from [python.org](https://www.python.org/downloads/)
+   if you don't already have it. On Windows, tick **"Add python.exe to PATH"**
+   in the installer.
+2. **Open a terminal in the unzipped folder.** On Windows, open the folder in
+   Explorer, then right-click an empty spot and choose **Open in Terminal**.
+3. **Install the one dependency:**
+   ```
+   python -m pip install -r requirements.txt
+   ```
+4. **See what's missing** (optional, changes nothing):
+   ```
+   python src/fontpatch.py scan
+   ```
+5. **Install:**
+   ```
+   python src/fontpatch.py install
+   ```
+6. **Check it worked:**
+   ```
+   python src/fontpatch.py verify
+   ```
+   Every line should say `[OK ]`.
+7. **Launch ITGmania** and look at the music wheel.
+
+If `python` isn't recognised on Windows, use `py` instead (for example
+`py src/fontpatch.py install`).
+
+### Option B: PowerShell (checks and repairs, no Python needed)
+
+`Repair-FontPatch.ps1` can't add characters. It checks an existing install,
+and it fixes the problem where **the game won't start** after an older version
+of this tool ([details below](#the-game-wont-start-unknown-file-format)).
+
+1. **Open PowerShell in the unzipped folder.** In Explorer, right-click an
+   empty spot and choose **Open in Terminal**.
+2. **Do a dry run** to see what it would change, without changing anything:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\Repair-FontPatch.ps1 -WhatIf
+   ```
+3. **Run it for real:**
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\Repair-FontPatch.ps1
+   ```
+   It ends with `All good.` or a list of problems and what to run next.
+
+`-ExecutionPolicy Bypass` lets Windows run a script downloaded from the
+internet for this one run only. It doesn't change any settings.
+
+### Is your game somewhere unusual?
+
+Both tools look in the usual places on their own:
+
+- `C:\Games\ITGmania`
+- `C:\Program Files\ITGmania`
+- `%APPDATA%\ITGmania`
+- `~/.itgmania`
+- `~/Library/Application Support/ITGmania`
+- `/opt/itgmania`
+
+If yours is somewhere else, point the tool at it. Use the folder that contains
+`Themes`:
+
+```
+python src/fontpatch.py install --root "D:\Games\ITGmania"
+.\Repair-FontPatch.ps1 -Root "D:\Games\ITGmania"
+```
+
+If the folder doesn't exist or has no `Themes` folder, the tool stops and
+tells you why before changing anything.
+
+---
+
+## After a theme update
+
+Updating a theme (for example a new Simply Love release) resets its font
+settings, so the characters go missing again. The pages the tool built are
+still there, so the fix is quick:
+
+```
+python src/fontpatch.py verify     # shows what the update undid
+python src/fontpatch.py install    # puts it back
+```
+
+---
+
+## Undo everything
+
+```
+python src/fontpatch.py uninstall
+```
+
+This restores each theme's original font settings and deletes everything the
+tool created. To undo just one theme, add `--theme "Simply Love"`.
+
+---
+
+## Troubleshooting
+
+### The game won't start: "unknown file format"
+
+```
+RageBitmapTexture: Couldn't load /Themes/Simply Love/Fonts/Common default.ini.fontpatch-bak: unknown file format
+```
+
+An older version of this tool kept its backup inside the theme's `Fonts`
+folder, and ITGmania tries to load anything in there that's named like a font.
+Either of these moves the backup to a safe place
+(`<your ITGmania folder>\fontpatch-backup\`):
+
+```
+python src/fontpatch.py install
+powershell -ExecutionPolicy Bypass -File .\Repair-FontPatch.ps1
+```
+
+### "No ITGmania install found"
+
+Your game isn't in one of the usual places. Add `--root` (Python) or `-Root`
+(PowerShell) with the folder that contains `Themes`. See
+[Is your game somewhere unusual?](#is-your-game-somewhere-unusual)
+
+### "This tool needs Pillow"
+
+Run `python -m pip install -r requirements.txt` from the unzipped folder.
+
+### "running scripts is disabled on this system"
+
+Windows blocks downloaded scripts by default. Start the script the way the
+quick start shows: `powershell -ExecutionPolicy Bypass -File .\Repair-FontPatch.ps1`.
+
+### Some characters are still blank
+
+Run `python src/fontpatch.py scan -v`. It lists every title, subtitle and
+artist that still won't display, and which characters are missing. If a whole
+script was skipped during install, the installer says why. Usually no suitable
+font was found, and you can point it at one yourself:
+
+```
+python src/fontpatch.py install --thai-font "C:\path\to\SomeThaiFont.ttf"
+```
+
+---
+
+## Command reference
+
+### Python: `python src/fontpatch.py <command>`
+
+| command | what it does |
+|---|---|
+| `scan` | Shows which characters each theme is missing and which songs are affected. Add `-v` to list them. Changes nothing. |
+| `install` | Builds the missing characters and adds them to each theme. Safe to run again any time. |
+| `verify` | Checks the install is complete and still intact. Exits non-zero if not. |
+| `preview` | Saves a picture of text rendered with the installed fonts, so you can check without launching the game. |
+| `uninstall` | Restores everything and removes everything the tool created. |
+
+Options:
+
+| option | works with | meaning |
+|---|---|---|
+| `--root PATH` | all | your ITGmania folder (repeatable). It is checked before anything runs |
+| `--theme NAME` | all | only this theme (repeatable) |
+| `--scripts vietnamese,thai,korean,chinese` | `install` | install only some scripts. Ones already installed are kept |
+| `--thai-font` / `--korean-font` / `--chinese-font PATH` | `install` | use a specific font file |
+| `--korean-oversample` / `--chinese-oversample N` | `install` | texture sharpness. The default picks the sharpest that fits |
+| `--no-extra-scripts` | `install` | don't connect the Thai/Korean/CJK fonts that already ship with the game |
+| `--text "..."` / `-o FILE` | `preview` | text to render (defaults to your song titles) and the output file |
+| `-v` | `scan` | list the affected songs |
+
+```
+$ python src/fontpatch.py scan -v
+=== C:\Games\ITGmania
+  Simply Love   viet 0/94  thai 0/95  kore 246/11172  chin 5756/15697  affected title/subtitle/artist: 15
+        TITLE     Vết Xước                       missing: ếướ
+        ARTIST    李要红RedLi                      missing: 红
+```
+
+### PowerShell: `.\Repair-FontPatch.ps1`
+
+| option | meaning |
+|---|---|
+| `-Root PATH` | your ITGmania folder (repeatable). It is checked before anything runs |
+| `-Theme NAME` | only check this theme |
+| `-WhatIf` | show what would be moved without changing anything |
+
+The script works in Windows PowerShell 5.1 and PowerShell 7. It checks that:
+
+- no stray file sits next to a font where the game would try to load it
+- the backup is in the right place
+- every generated font file is present, unchanged and a valid image
+- every import line is still in the theme's font settings
+
+It exits 1 if anything is wrong, so it can be used in other scripts.
+
+---
+
+## How it works
+
+### Why the characters are missing
+
+Song titles are stored as UTF-8, and ITGmania never strips accents. When a
+character shows up blank, the theme's bitmap font simply has no picture for
+it. Each script is missing for a different reason:
+
+| Script | What's actually wrong |
 |---|---|
 | **Vietnamese** | No glyphs at all for `U+1EA0–U+1EF9`, nor for the horn letters `Ơ ơ Ư ư`. Latin-1 accents work, so `CHÁY MÁY` renders but `Vết Xước` does not. |
-| **Thai** | `_Thai 16px` ships in `_fallback` but Simply Love never imports it. Even when reached, it uses `Baseline=36 / LineSpacing=36` against a body font at `19 / 24`. |
-| **Korean** | The shipped `_korean 24px` pages are named `[jamo 1..4]` but contain no jamo — they are ~246 hand-picked precomposed syllables. Most Hangul is simply absent. |
-| **Chinese** | There is no Chinese font. `_chinese 24px` is 126 hand-picked UI words (`鍵輯按箭這玩…`) for translating the StepMania interface. Chinese text is rendered by the **Japanese JIS kanji** pages, which cover most traditional forms and almost no PRC-simplified ones. |
+| **Thai** | `_Thai 16px` ships in `_fallback` but Simply Love never imports it. Even when it is reached, it uses `Baseline=36 / LineSpacing=36` against a body font at `19 / 24`. |
+| **Korean** | The shipped `_korean 24px` pages are named `[jamo 1..4]` but contain no jamo. They hold ~246 hand-picked precomposed syllables, and most Hangul is simply absent. |
+| **Chinese** | There is no Chinese font. `_chinese 24px` is 126 hand-picked UI words (`鍵輯按箭這玩…`) for translating the StepMania interface. Chinese text is drawn by the **Japanese JIS kanji** pages, which cover most traditional forms and almost no PRC-simplified ones. |
 
 Measured against a stock install, before patching:
 
@@ -37,138 +252,9 @@ Hangul syllables             11,172 chars →    246 covered, 10,926 missing (98
 Vietnamese                       94 chars →      0 covered,     94 missing
 ```
 
----
+### What it changes
 
-## Install
-
-Requires **Python 3** and **Pillow**. `fonttools` is optional — it is only used
-to read a source font's licence string.
-
-```bash
-pip install -r requirements.txt
-```
-
-```bash
-python fontpatch.py scan        # what is missing, per theme
-python fontpatch.py install     # generate the pages and wire them in
-python fontpatch.py verify      # confirm nothing has drifted
-python fontpatch.py preview     # render proof from the installed files
-python fontpatch.py uninstall   # restore everything, leaves no trace
-```
-
-`install` is idempotent — run it as often as you like, and again after a theme
-update. See [Surviving updates](#surviving-updates).
-
-Every command takes `--root PATH` (repeatable) to point at a specific install
-instead of searching the usual locations. The path must exist and contain a
-`Themes` folder, otherwise the tool stops with exit code 2 before touching
-anything.
-
-### Without Python: `Repair-FontPatch.ps1`
-
-```powershell
-.\Repair-FontPatch.ps1                         # fix + check every theme
-.\Repair-FontPatch.ps1 -Root C:\Games\ITGmania -Theme "Simply Love" -WhatIf
-```
-
-Works in Windows PowerShell 5.1 and PowerShell 7, with no Python or Pillow.
-Moves backups left by older versions out of the theme's `Fonts` folder (they
-caused `RageBitmapTexture: ... unknown file format` on launch), then checks
-each theme: generated pages present, unchanged and valid PNGs, import lines
-intact, and no stray file next to any font that the engine would try to load
-as a texture. It reports; regenerating pages still needs `fontpatch.py install`.
-
-`-Root` is validated like `--root` (exit 2). `-WhatIf` shows what would move
-without changing anything. Exits 1 if any check fails.
-
-### Game won't launch: `unknown file format`
-
-```
-RageBitmapTexture: Couldn't load /Themes/Simply Love/Fonts/Common default.ini.fontpatch-bak: unknown file format
-```
-
-Older versions kept their backup next to `Common default.ini`, and the engine
-loads every file starting with a font's name as a texture. Run either
-`python fontpatch.py install` or `.\Repair-FontPatch.ps1`; both move the backup
-to `<itgmania root>/fontpatch-backup/`.
-
----
-
-## Commands
-
-### `scan`
-
-Reports per-theme coverage and every song string that will not render. It
-checks **TITLE, SUBTITLE and ARTIST**, because the music wheel shows all three
-and a missing glyph in the artist line looks just as broken as one in a title.
-
-```
-$ python fontpatch.py scan -v
-=== C:\Games\ITGmania
-  Simply Love   viet 0/94  thai 0/95  kore 246/11172  chin 5756/15697  affected: 15
-        TITLE     Vết Xước                       missing: ếướ
-        ARTIST    李要红RedLi                      missing: 红
-```
-
-`-v` lists the affected strings.
-
-### `install`
-
-Generates the pages and appends them to the theme's `Common default` import
-line.
-
-| flag | meaning |
-|---|---|
-| `--scripts vietnamese,thai,korean,chinese` | only install some |
-| `--theme NAME` | only patch one theme (repeatable) |
-| `--root PATH` | point at a specific ITGmania install (repeatable, validated — see above) |
-| `--thai-font` / `--korean-font` / `--chinese-font` | use a specific TTF/OTF |
-| `--korean-oversample` / `--chinese-oversample` | texture scale, default auto |
-| `--no-extra-scripts` | skip wiring up the shipped Thai/Korean/CJK pages |
-
-Installing a subset does not disturb what is already installed.
-
-### `verify`
-
-Re-checks that the pages exist, that the import line is still present, that
-every glyph is reachable, that nothing in your song library is still
-uncovered, and that no old backup is left beside `Common default.ini`. Exits
-non-zero if anything is wrong.
-
-```
-  [BAD] Simply Love   vietnamese import lost (theme updated?); 94 glyph(s) unreachable
-  re-run:  python fontpatch.py install
-```
-
-### `preview`
-
-Renders text using the **installed files**, simulating the engine's own glyph
-pipeline — centred width cropping, `DrawExtraPixels` clamping, zero-advance
-overlays, per-page baselines. Use it to check a change without launching the
-game.
-
-```bash
-python fontpatch.py preview --text "Vết Xước  แค่เธอ  르세라핌  爱财龙"
-python fontpatch.py preview --theme "Simply Love" -o out.png
-```
-
-With no `--text` it renders every non-ASCII string in your song library.
-
-### `uninstall`
-
-Restores each patched file from its backup and deletes every generated page,
-the backups and the manifest. Verified to leave zero files and zero import
-references behind.
-
-The backup is taken on first install and never refreshed, so after a theme
-update `uninstall` restores the *pre-update* `Common default.ini`. Reinstall
-the theme afterwards if that matters.
-
----
-
-## What it changes
-
-Per theme, **exactly one modified file** — one import line appended to
+Per theme, **exactly one file is modified**: one import line is appended to
 `Common default.ini`:
 
 ```diff
@@ -176,122 +262,108 @@ Per theme, **exactly one modified file** — one import line appended to
 +import=16px fonts/_16px fonts,_Thai 16px,_korean 24px,_japanese 24px,_chinese 24px,_fontpatch vietnamese,_fontpatch thai,_fontpatch korean,_fontpatch chinese
 ```
 
-Everything else is purely additive:
+Everything else is added alongside the theme's files:
 
 | path | |
 |---|---|
-| `Fonts/_fontpatch <script>.ini` + `.png` pages | generated |
-| `<itgmania root>/fontpatch-backup/Themes/<theme>/Fonts/Common default.ini` | backup, used by `uninstall` (kept out of the theme: the engine loads any `Common default*` file in `Fonts/` as a texture page) |
+| `Fonts/_fontpatch <script>.ini` + `.png` pages | generated font pages |
+| `<itgmania root>/fontpatch-backup/Themes/<theme>/Fonts/Common default.ini` | backup, used by `uninstall`. It is kept outside the theme because the game loads any `Common default*` file in `Fonts/` as a texture |
 | `<itgmania root>/fontpatch-manifest.json` | record of what was installed |
 
-The theme's own body font (`Miso/_miso light.ini` in Simply Love) is **never
-touched**. Disk cost is roughly 6 MB per theme, almost all of it the Chinese
-pages.
+The theme's own fonts (such as `Miso/_miso light.ini` in Simply Love) are
+**never touched**. Disk cost is roughly 6 MB per theme, almost all of it the
+Chinese pages.
+
+The backup is refreshed whenever `install` finds an unpatched
+`Common default.ini`, for example after a theme update. That way `uninstall`
+always restores the theme version you actually have. If a backup is missing,
+`uninstall` removes the import entries one by one instead.
 
 ### Why `Common default`
 
-`Font::Load` imports `Common default` behind **every** font, so one import line
-reaches the whole theme. Imports are merged first and then overridden by the
-font's own pages, which means a theme's existing glyphs always win — the patch
-can only fill gaps, never change what already renders.
+ITGmania imports `Common default` behind **every** font, so one import line
+reaches the whole theme. A font's own glyphs always take priority over
+imported ones, so the patch can only fill gaps. It can never change something
+that already displays.
 
-Our pages are imported *after* the shipped language pages, so where both define
-a character ours is used (`MergeFont` assigns into `m_iCharToGlyph`, so the
-later import wins).
+The generated pages are imported *after* the shipped language pages, so where
+both define a character, the generated one is used. `MergeFont` assigns into
+`m_iCharToGlyph`, so the later import wins.
 
-### `_fallback` is the baseline, but not the whole answer
+### `_fallback` and themes that override it
 
-`Themes/_fallback` is the shared home, and patching it fixes every theme that
-inherits it. But a theme that ships its own `Common default.ini` **shadows**
-that chain — `ThemeManager::GetPathInfoToAndFallback` walks the theme list
-current-theme-first. Simply Love ships its own, which is exactly why it was
-missing Thai and Korean even though both pages already existed in `_fallback`.
+Patching `Themes/_fallback` fixes every theme that inherits from it. But a
+theme that ships its own `Common default.ini` **overrides** `_fallback`'s copy
+(`ThemeManager::GetPathInfoToAndFallback` checks the current theme first).
+Simply Love ships its own, which is why it was missing Thai and Korean even
+though both pages already existed in `_fallback`.
 
-So the patcher does both: assets in `_fallback`, plus one import line for each
-theme that shadows it. Themes that inherit are detected and skipped rather than
-patched twice.
+So the tool patches `_fallback`, plus each theme that overrides it. Themes that
+inherit are detected and not patched twice.
 
----
+### Where the characters come from
 
-## Where the glyphs come from
+**Vietnamese is built from the theme's own letters**, so it needs no extra font
+and matches the typeface exactly. Base letters and the acute, grave, tilde,
+circumflex and breve marks are lifted from the font's own accented letters.
+`dấu hỏi` is built from the bowl of its `?`, dot-below from its `.`, and the
+horn from its `’`.
 
-**Vietnamese is composited from the theme's own letterforms**, so it needs no
-source font and matches the typeface exactly. Base letters and the acute,
-grave, tilde, circumflex and breve marks are lifted from the font's own
-precomposed glyphs; `dấu hỏi` is built from the bowl of its `?`; dot-below from
-its `.`; the horn from its `’`.
-
-**Thai, Korean and Chinese cannot be composited from Latin shapes**, so they
-are rendered from a TrueType font already installed on your system, sized to
-match the theme's body font. Defaults, in preference order:
+**Thai, Korean and Chinese can't be built from Latin shapes**, so they are
+rendered from a font installed on your computer and sized to match the theme.
+The tool tries these in order:
 
 | script | preferred source |
 |---|---|
 | Thai | Noto Sans Thai, Sarabun, Niramit, Leelawadee UI, Tahoma |
-| Korean | Noto Sans KR, NanumGothic, Malgun Gothic |
+| Korean | NanumGothic, Noto Sans KR, Malgun Gothic |
 | Chinese | Noto Sans SC, Microsoft YaHei, SimSun |
 
-Override any of them with `--thai-font` / `--korean-font` / `--chinese-font`.
+Windows includes Leelawadee UI, Tahoma, Malgun Gothic and Microsoft YaHei, so
+no download is needed. Override any choice with `--thai-font` /
+`--korean-font` / `--chinese-font`.
 
-The generated `.ini` records which font was used and its licence string, read
-from the font's own name table rather than guessed from the filename. That
-distinction matters: the NanumGothic build shipped with Windows is named like
-the OFL release, but its name table says `NHN Corporation`.
+The generated `.ini` records which font was used and its licence, read from
+the font file itself rather than guessed from its name. That matters: the
+NanumGothic build that ships with Windows is named like the OFL release, but
+its name table says `NHN Corporation`.
 
-**No font data is redistributed by this repository.** Pages are built on your
-machine from fonts you already have, which is why there is no licensing
-question to answer here — and also why generated pages are `.gitignore`d and
-should not be committed or shared.
+**This repository contains no font data.** Pages are built on your machine
+from fonts you already have, so there is no licensing question. That's also
+why generated pages are `.gitignore`d and shouldn't be committed or shared.
 
-### Chinese includes kana — deliberately
+### Chinese includes kana, on purpose
 
 The Chinese page covers GB2312 ∪ Big5 Han **plus kana and CJK punctuation**.
-Because it overrides the JIS pages for every codepoint it defines — which is
-most Japanese kanji too — a Han-only page would leave Japanese titles half in
-this face at body size and half in the larger shipped JIS pages. Including kana
-keeps Japanese internally consistent, and incidentally fixes the long-standing
-mismatch where CJK rendered noticeably larger than the Latin text beside it.
-
----
-
-## Surviving updates
-
-A theme update overwrites `Common default.ini` and reverts the import line. The
-generated pages are untouched, so recovery is:
-
-```bash
-python fontpatch.py verify    # says exactly which imports were lost
-python fontpatch.py install   # re-applies them
-```
-
-`.\Repair-FontPatch.ps1` gives the same lost-import report without Python.
-
-`install` adds only the imports that are missing, so it never stacks
-duplicates, and it patches the updated file rather than restoring the old one.
+It replaces the JIS pages for every character it defines, which includes most
+Japanese kanji. A Han-only page would leave Japanese titles half in this face
+at body size and half in the larger JIS pages. Including kana keeps Japanese
+consistent. It also fixes the long-standing problem of CJK text looking
+noticeably bigger than the Latin text next to it.
 
 ---
 
 ## Known limitations
 
 - **Simplified vs Traditional regional forms.** A bitmap font maps one
-  codepoint to one glyph, so where the two conventions draw a shared codepoint
-  differently, one style has to win. Noto Sans **SC** is the default because it
-  also covers the Big5 traditional set, whereas a TC font is missing ~1,900
-  simplified-only forms. Use `--chinese-font` to flip it.
-- **Rare Han outside GB2312 ∪ Big5** still falls back to the JIS pages, and so
-  still renders larger than its neighbours.
+  character to one picture, so where the two conventions draw a shared
+  character differently, one style has to win. Noto Sans **SC** is the default
+  because it also covers the Big5 traditional set, whereas a TC font is
+  missing ~1,900 simplified-only forms. Use `--chinese-font` to flip it.
+- **Rare Han outside GB2312 ∪ Big5** still falls back to the JIS pages, so it
+  still looks larger than the text around it.
 - **No text shaping.** The engine has none. Thai combining marks use the
-  engine's zero-advance overlay convention, which assumes a monospaced
-  consonant advance — the same assumption the shipped Thai page makes.
-- **Fonts without the needed primitives.** `frutiger 24px` has no breve-`a`, so
-  10 of the 94 Vietnamese glyphs cannot be composited from it. The tool reports
-  which and installs the other 84.
-- **`MaxTextureResolution`** (2048 by default) downscales any larger page.
-  Generated CJK pages are packed to stay inside it, at the sharpest oversample
-  that still fits.
-- **Verification is offline.** `preview` simulates the engine's glyph pipeline
-  rather than driving the game, so it proves the files parse and the metrics
-  line up, not that the game is happy. See `llm/05-verification.md`.
+  engine's zero-advance overlay convention, the same one the shipped Thai page
+  uses.
+- **Fonts missing the needed pieces.** `frutiger 24px` has no breve-`a`, so 10
+  of the 94 Vietnamese characters can't be built from it. The tool lists them
+  and installs the other 84.
+- **`MaxTextureResolution`** (2048 by default) shrinks any larger page.
+  Generated CJK pages are packed to stay inside it at the sharpest size that
+  fits.
+- **`preview` is a simulation.** It reproduces the engine's glyph layout
+  rather than running the game. It proves the files load and line up, but
+  launching ITGmania is the real test. See `llm/05-verification.md`.
 
 ---
 
@@ -299,15 +371,15 @@ duplicates, and it patches the updated file rather than restoring the old one.
 
 | file | |
 |---|---|
-| `fontpatch.py` | CLI: scan / install / verify / uninstall / preview |
-| `smfont.py` | reader for StepMania bitmap fonts — redirs, imports, `Line`/`map`/`range`, `(res WxH)` hints |
-| `compose.py` | Vietnamese compositor (builds from the theme's own font) |
-| `ttfgen.py` | Thai / Korean / Chinese renderers (build from a TTF) |
-| `fontspec.py` | shared font spec → `.ini` + `.png` writer |
+| `src/fontpatch.py` | the command-line tool: scan / install / verify / uninstall / preview |
+| `src/smfont.py` | reader for StepMania bitmap fonts: redirs, imports, `Line`/`map`/`range`, `(res WxH)` hints |
+| `src/compose.py` | Vietnamese builder (uses the theme's own font) |
+| `src/ttfgen.py` | Thai / Korean / Chinese renderers (use a TTF) |
+| `src/fontspec.py` | shared writer for `.ini` + `.png` font pages |
 | `Repair-FontPatch.ps1` | PowerShell backup repair + font check, no Python needed |
-| `requirements.txt` | Pillow, optional fonttools |
-| `llm/` | deep technical documentation |
+| `requirements.txt` | Pillow, plus optional fonttools |
+| `llm/` | in-depth technical documentation |
 
-If you are modifying this tool — or pointing an LLM at it — start with
-[`llm/README.md`](llm/README.md). It documents the engine behaviour the
-generators depend on, most of which is not obvious from the StepMania source.
+**Contributing, or pointing an AI assistant at this repo?** Start with
+[`llm/README.md`](llm/README.md). It documents the engine behaviour the tool
+depends on, most of which isn't obvious from the StepMania source.

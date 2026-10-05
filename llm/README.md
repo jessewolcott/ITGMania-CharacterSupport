@@ -2,9 +2,14 @@
 
 Deep notes on how this patcher works and, more importantly, on the engine
 behaviour it depends on. Most of what follows is not stated anywhere in the
-StepMania/ITGmania source — it was derived by reading `src/Font.cpp`,
-`src/RageBitmapTexture.cpp` and `src/ThemeManager.cpp` and confirming against
+StepMania/ITGmania source — it was derived by reading ITGmania's
+`src/Font.cpp`, `src/RageBitmapTexture.cpp` and `src/ThemeManager.cpp` (the
+engine's repository, not this one's `src/`) and confirming against
 the shipped font assets.
+
+The Python sources live in `../src/`; file names below (`fontpatch.py`,
+`smfont.py`, ...) refer to that folder. `Repair-FontPatch.ps1` is at the top
+level.
 
 Read in order if you are new:
 
@@ -59,8 +64,8 @@ Any change should preserve all of these:
   gains an import line, and a backup of it is kept under `<root>/fontpatch-backup/`
   (never in `Fonts/`, where the engine would load it as a texture page).
 - `install` is idempotent: `patch_import()` skips entries already present, so
-  repeated runs cannot stack imports. The backup is written once and never
-  overwritten.
+  repeated runs cannot stack imports. The backup is refreshed only from a
+  pristine `Common default` (none of our imports), never from a patched one.
 - Nothing is written into `Fonts/` that shares a font's name prefix unless it
   is a real page.
 - An explicit `--root` / `-Root` is validated before anything runs; a bad one

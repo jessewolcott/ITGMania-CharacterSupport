@@ -71,7 +71,7 @@ Reads the **installed** files and reproduces the engine's glyph pipeline:
 | later-import-wins page selection | yes (via `coverage`) |
 
 ```bash
-python fontpatch.py preview --text "Vết Xước  แค่เธอ  르세라핌  爱财龙"
+python src/fontpatch.py preview --text "Vết Xước  แค่เธอ  르세라핌  爱财龙"
 ```
 
 This is what catches real mistakes. Things it has actually caught:
@@ -101,18 +101,18 @@ true end-to-end check.
 
 ```bash
 # 1. clean round trip - must end with zero files and zero import refs
-python fontpatch.py uninstall
-python fontpatch.py install
-python fontpatch.py verify          # expect exit 0
+python src/fontpatch.py uninstall
+python src/fontpatch.py install
+python src/fontpatch.py verify          # expect exit 0
 
 # 2. drift detection - simulate a theme update reverting the import line
 cp "<root>/fontpatch-backup/Themes/<theme>/Fonts/Common default.ini" "<theme>/Fonts/Common default.ini"
-python fontpatch.py verify          # expect exit 1, naming each lost import
-python fontpatch.py install
-python fontpatch.py verify          # expect exit 0
+python src/fontpatch.py verify          # expect exit 1, naming each lost import
+python src/fontpatch.py install
+python src/fontpatch.py verify          # expect exit 0
 
 # 3. subset install must not orphan other scripts
-python fontpatch.py install --scripts thai
+python src/fontpatch.py install --scripts thai
 python -c "import json;d=json.load(open('<root>/fontpatch-manifest.json'));
 print([sorted(e['scripts']) for e in d['entries'].values()])"
 # expect all four scripts still listed
@@ -124,12 +124,12 @@ print([sorted(e['scripts']) for e in d['entries'].values()])"
 # 5. legacy backup migration - nothing may be left beside Common default
 cp "<root>/fontpatch-backup/Themes/<theme>/Fonts/Common default.ini" \
    "<theme>/Fonts/Common default.ini.fontpatch-bak"
-python fontpatch.py verify          # expect exit 1, "old backup beside Common default"
-python fontpatch.py install         # or: .\Repair-FontPatch.ps1
+python src/fontpatch.py verify          # expect exit 1, "old backup beside Common default"
+python src/fontpatch.py install         # or: .\Repair-FontPatch.ps1
 ls "<theme>/Fonts/Common default"*  # expect only Common default.ini
 
 # 6. --root validation - must refuse before touching anything
-python fontpatch.py verify --root C:\nope           # expect exit 2
+python src/fontpatch.py verify --root C:\nope           # expect exit 2
 .\Repair-FontPatch.ps1 -Root C:\nope                # expect exit 2
 .\Repair-FontPatch.ps1 -WhatIf                      # expect only "What if:" lines, no changes
 ```

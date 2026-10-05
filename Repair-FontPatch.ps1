@@ -19,7 +19,7 @@
          - no stray file next to any font that the engine would try to load
            as a texture
 
-    Generating pages still needs `python fontpatch.py install`; this script
+    Generating pages still needs `python src\fontpatch.py install`; this script
     only repairs the backup location and reports.
 
 .PARAMETER Root
@@ -127,8 +127,12 @@ function Test-Png([string]$path) {
 }
 
 # fontpatch.py records sha256 truncated to 16 hex chars
+# (.NET directly: under -WhatIf, 5.1's Get-FileHash skips its work and returns nothing)
 function Get-ShortSha([string]$path) {
-    return (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.Substring(0, 16).ToLowerInvariant()
+    $sha = [Security.Cryptography.SHA256]::Create()
+    $fs = [IO.File]::OpenRead($path)
+    try { $bytes = $sha.ComputeHash($fs) } finally { $fs.Dispose(); $sha.Dispose() }
+    return (-join ($bytes[0..7] | ForEach-Object { $_.ToString('x2') }))
 }
 
 # ------------------------------------------------------------- 1. backups
@@ -211,7 +215,7 @@ function Test-Theme([string]$root, [string]$themeName, $manifest, [hashtable]$se
     if (-not $entry) {
         $ours = @($imports | Where-Object { $_ -like "$Prefix *" })
         if ($ours) { Write-Bad "imports $($ours -join ', ') but has no manifest entry" }
-        else { Write-Info 'not patched (run: python fontpatch.py install)' }
+        else { Write-Info 'not patched (run: python src\fontpatch.py install)' }
         return
     }
 
@@ -309,7 +313,9 @@ foreach ($r in $roots) {
 
 Write-Host ''
 if ($script:Problems) {
-    Write-Host "$script:Problems problem(s). Lost imports or missing pages: python fontpatch.py install" -ForegroundColor Red
+    Write-Host "$script:Problems problem(s)." -ForegroundColor Red
+    if ($WhatIfPreference) { Write-Host '  Backups were not moved (-WhatIf). Run again without it.' -ForegroundColor Red }
+    Write-Host '  Lost imports, missing or changed pages: python src\fontpatch.py install' -ForegroundColor Red
     exit 1
 }
 Write-Host 'All good.' -ForegroundColor Green

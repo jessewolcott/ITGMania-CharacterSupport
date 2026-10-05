@@ -15,7 +15,9 @@ either a usable theme or an existing manifest. The user data directory
 An explicit `--root` is validated in `main()` before any command runs:
 `root_error()` rejects a path that does not exist, is not a directory, or has
 no `Themes/`. Every bad root is reported and the tool exits with code 2 without
-touching anything. This runs before the Pillow check, which is why `compose`
+touching anything. A valid root with no patchable theme is reported (and makes
+`install` exit 1) rather than silently skipped. This runs before the Pillow
+check, which is why `compose`
 (it imports Pillow) is imported lazily inside `script_chars()` and
 `_build_spec()` rather than at module top.
 
@@ -122,18 +124,20 @@ Because Simply Love's Vietnamese page is composited from Miso, and
 
 `install` patches the **current** `Common default` in place. Idempotency comes
 from `patch_import()`, which parses the existing comma list and does nothing
-when the entry is already present. The backup is copied on first install and
-never overwritten. Consequences:
+when the entry is already present.
+
+The backup is refreshed whenever `Common default` is **pristine**: its import
+line (`read_imports()`) holds no `_fontpatch *` entry and nothing the manifest
+records for it (generated fonts or extra imports). That is true on first
+install and after a theme update replaces the file, so the backup always
+matches the theme version actually installed. A file that still carries our
+imports never overwrites the backup. Consequences:
 
 - repeated installs cannot stack duplicate imports;
 - a half-finished run is recoverable by running it again;
 - after a theme update reverts the import line, `install` re-adds it to the
-  new file rather than resurrecting the old one.
-
-**Caveat:** because the backup is never refreshed, after a theme update it
-holds the *previous* version of the theme's `Common default`. `uninstall`
-restores that older file. Reinstalling the theme after an uninstall gives a
-clean result.
+  new file and backs up the new file, so `uninstall` restores the current
+  theme version rather than the pre-update one.
 
 Installing a subset (`--scripts thai`) merges into the manifest rather than
 replacing it:
@@ -211,9 +215,14 @@ one beside it), deletes the backup, deletes every file recorded in the
 manifest, deletes the manifest, then prunes the empty `fontpatch-backup/`
 directories. Verified to leave zero generated files and zero import references.
 
-If no backup exists at either location, `Common default` is left as it is, so
-its import line still names fonts whose files were just deleted. Remove those
-entries by hand, or reinstall the theme.
+If no backup exists at either location, every recorded import (generated fonts
+and extra imports) is removed from `Common default` individually with
+`patch_import(..., remove=True)`, so nothing is left naming a deleted font.
+
+`--theme` limits `uninstall` (and `verify`) to the entries for those themes.
+`selected_entries()` matches by the `Common default` each named theme resolves
+to, so naming a theme that inherits `_fallback` selects `_fallback`'s entry.
+The other entries stay in the manifest, which is deleted only once empty.
 
 ---
 

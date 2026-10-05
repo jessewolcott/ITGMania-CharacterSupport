@@ -115,6 +115,13 @@ easy to fall into again.
 | Game failed to launch: `RageBitmapTexture: Couldn't load .../Common default.ini.fontpatch-bak: unknown file format` | backup written beside `Common default.ini`; `GetFontPaths` loads every non-`.ini` `<name>*` file as a page | backups moved to `<root>/fontpatch-backup/`; `install` / `Repair-FontPatch.ps1` migrate old ones |
 | No "needs Pillow" message, just a traceback | `import compose` at module top pulled in Pillow before `main()` ran | import `compose` lazily where it is used |
 | `--root` typo produced confusing output | explicit roots were never checked | `root_error()` / `-Root` validation, exit 2 |
+| `uninstall` after a theme update restored the pre-update `Common default` | backup written once and never refreshed | refresh it whenever `Common default` carries none of our imports |
+| `uninstall` with no backup left imports naming deleted fonts | docs promised a fallback the code never had | strip each recorded import with `patch_import(remove=True)` |
+| `uninstall --theme X` removed every theme | `--theme` was accepted but ignored by `verify` / `uninstall` | `selected_entries()`; manifest kept until empty |
+| `install --root` on a root with no usable theme printed nothing, exit 0 | unpatchable roots were skipped silently | report it; `install` exits 1 |
+| `preview` said "nothing to render" without Simply Love | default theme hardcoded | fall back to the first patchable theme, report an unknown one |
+| `Repair-FontPatch.ps1 -WhatIf` crashed on 5.1 | `Get-FileHash` honours `-WhatIf` and returns nothing | hash with .NET `SHA256` directly |
+| Message printed `python srcontpatch.py` | `sed` read `\f` in `src\fontpatch` as a form feed | write backslashes from Python, not `sed` replacements |
 | PowerShell repair wrote a file named `@{version=2; entries=}` | `$manifest` (data) overwrote `$Manifest` (filename) — PS names are case-insensitive | renamed the constant to `$ManifestFile` |
 
 ---

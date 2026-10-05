@@ -22,11 +22,11 @@ re-checks it after a theme update.
 
 Usage
 -----
-    python fontpatch.py scan
-    python fontpatch.py install [--scripts vietnamese,thai,korean]
-    python fontpatch.py verify
-    python fontpatch.py uninstall
-    python fontpatch.py preview --text "..."
+    python src/fontpatch.py scan
+    python src/fontpatch.py install [--scripts vietnamese,thai,korean]
+    python src/fontpatch.py verify
+    python src/fontpatch.py uninstall
+    python src/fontpatch.py preview --text "..."
 """
 from __future__ import print_function
 
@@ -47,6 +47,7 @@ BACKUP_DIR = "fontpatch-backup"
 LEGACY_BAK_SUFFIX = ".fontpatch-bak"
 MANIFEST = "fontpatch-manifest.json"
 PREFIX = "_fontpatch"
+NOTHING_PATCHABLE = "no patchable theme (each needs a Common default and a body font)"
 
 ALL_SCRIPTS = ["vietnamese", "thai", "korean", "chinese"]
 
@@ -274,6 +275,19 @@ def song_metadata(roots, fields=SONG_FIELDS):
 
 
 # ---------------------------------------------------------------- ini patch
+def read_imports(path):
+    """Entries on the [main] import= line, as Font::Load reads them."""
+    in_main = False
+    for ln in open(path, "rb").read().splitlines():
+        s = ln.strip()
+        if s.startswith(b"[") and s.endswith(b"]"):
+            in_main = (s.lower() == b"[main]")
+        elif in_main and s.lower().startswith(b"import="):
+            return [p.strip().decode("utf-8", "replace")
+                    for p in s[7:].split(b",") if p.strip()]
+    return []
+
+
 def patch_import(path, add, remove=False):
     """Add/remove `add` on the [main] import= line. Returns True if changed."""
     data = open(path, "rb").read()
@@ -321,6 +335,20 @@ def load_manifest(root):
         except ValueError:
             pass
     return {"version": 2, "entries": {}}
+
+
+def selected_entries(root, manifest, themes):
+    """Manifest entries for --theme, matched by the Common default each named
+    theme resolves to - so an inheriting theme selects _fallback's entry."""
+    if not themes:
+        return sorted(manifest["entries"].items())
+    want = set()
+    for theme in themes:
+        t = Target(root, theme)
+        if t.common_default:
+            want.add(os.path.normcase(os.path.relpath(t.common_default, root)))
+    return sorted((k, e) for k, e in manifest["entries"].items()
+                  if os.path.normcase(e["common_default"].replace("/", os.sep)) in want)
 
 
 def save_manifest(root, m):
@@ -371,12 +399,20 @@ def _install_one(root, t, manifest, scripts, opts, quiet=False):
         print("  %-26s body font: %s" % (t.theme, os.path.basename(t.body)))
 
     cd = t.common_default
+    key = os.path.normcase(os.path.relpath(cd, root))
+    prev = manifest["entries"].get(key, {})
     bak = backup_path(root, cd)
     legacy = cd + LEGACY_BAK_SUFFIX
-    if not os.path.exists(bak):
+    # cd carrying none of our imports is pristine: never patched, or a theme
+    # update replaced it. Back up *that*, or uninstall would later restore the
+    # pre-update file.
+    ours = {g["font"] for g in prev.get("scripts", {}).values()}
+    ours.update(prev.get("extra_imports", []))
+    pristine = not any(i in ours or i.startswith(PREFIX + " ") for i in read_imports(cd))
+    if pristine or not os.path.exists(bak):
         os.makedirs(os.path.dirname(bak), exist_ok=True)
-        # an older install's backup is the pristine copy - keep it, not cd
-        src = legacy if os.path.exists(legacy) else cd
+        # otherwise an older install's backup is the pristine copy, not cd
+        src = cd if pristine or not os.path.exists(legacy) else legacy
         open(bak, "wb").write(open(src, "rb").read())
     if os.path.exists(legacy):
         os.remove(legacy)
@@ -421,11 +457,9 @@ def _install_one(root, t, manifest, scripts, opts, quiet=False):
             log("                  %d not buildable from this font: %s"
                 % (len(spec["missing"]), " ".join(c for c, _ in spec["missing"])))
 
-    key = os.path.normcase(os.path.relpath(cd, root))
     # Merge rather than replace: installing a subset (--scripts thai) must not
     # drop the record of scripts installed earlier, or uninstall would orphan
     # their files and import lines.
-    prev = manifest["entries"].get(key, {})
     all_scripts = dict(prev.get("scripts", {}))
     all_scripts.update(generated)
     manifest["entries"][key] = {
@@ -461,6 +495,8 @@ def cmd_install(args):
     rc = 0
     for root in roots:
         if not _installable(root):
+            print("\n=== %s\n  %s" % (root, NOTHING_PATCHABLE))
+            rc = 1
             continue
         print("\n=== %s" % root)
         manifest = load_manifest(root)
@@ -498,6 +534,7 @@ def cmd_scan(args):
         return 1
     for root in roots:
         if not _installable(root):
+            print("\n=== %s\n  %s" % (root, NOTHING_PATCHABLE))
             continue
         print("\n=== %s" % root)
         meta = song_metadata([root])
@@ -533,11 +570,15 @@ def cmd_verify(args):
         print("\n=== %s" % root)
         manifest = load_manifest(root)
         if not manifest["entries"]:
-            print("  nothing installed (run: python fontpatch.py install)")
+            print("  nothing installed (run: python src/fontpatch.py install)")
             rc = 1
             continue
         meta = song_metadata([root])
-        for key, e in sorted(manifest["entries"].items()):
+        entries = selected_entries(root, manifest, args.theme)
+        if not entries:
+            print("  nothing installed for %s" % ", ".join(args.theme))
+            rc = 1
+        for key, e in entries:
             problems = []
             cd = os.path.join(root, e["common_default"])
             if not os.path.isfile(cd):
@@ -569,7 +610,7 @@ def cmd_verify(args):
             if problems:
                 rc = 1
         if rc:
-            print("\n  re-run:  python fontpatch.py install")
+            print("\n  re-run:  python src/fontpatch.py install")
     return rc
 
 
@@ -580,7 +621,11 @@ def cmd_uninstall(args):
         if not manifest["entries"]:
             continue
         print("\n=== %s" % root)
-        for key, e in sorted(manifest["entries"].items()):
+        entries = selected_entries(root, manifest, args.theme)
+        if not entries:
+            print("  nothing installed for %s" % ", ".join(args.theme))
+        for key, e in entries:
+            del manifest["entries"][key]
             bak = os.path.join(root, e["backup"])
             cd = os.path.join(root, e["common_default"])
             legacy = cd + LEGACY_BAK_SUFFIX
@@ -590,6 +635,13 @@ def cmd_uninstall(args):
                 open(cd, "wb").write(open(bak, "rb").read())
                 os.remove(bak)
                 print("  restored %s" % e["common_default"])
+            elif os.path.isfile(cd):
+                # no backup: strip our entries so nothing names a deleted font
+                names = [g["font"] for g in e.get("scripts", {}).values()]
+                names += e.get("extra_imports", [])
+                for name in names:
+                    patch_import(cd, name, remove=True)
+                print("  no backup - removed imports from %s" % e["common_default"])
             if os.path.isfile(legacy):
                 os.remove(legacy)
             for s, g in e.get("scripts", {}).items():
@@ -599,7 +651,9 @@ def cmd_uninstall(args):
                         os.remove(p)
                 print("  removed  %s (%s)" % (g["font"], s))
         p = os.path.join(root, MANIFEST)
-        if os.path.isfile(p):
+        if manifest["entries"]:
+            save_manifest(root, manifest)    # --theme: keep the other themes
+        elif os.path.isfile(p):
             os.remove(p)
         # prune now-empty backup directories, deepest first
         for d, _, _ in sorted(os.walk(os.path.join(root, BACKUP_DIR)), reverse=True):
@@ -671,7 +725,14 @@ def cmd_preview(args):
         print("No ITGmania install found.")
         return 1
     root = roots[0]
-    theme = (args.theme or ["Simply Love"])[0]
+    if args.theme:
+        theme = args.theme[0]
+    else:
+        usable = [n for n in themes_of(root) if not Target(root, n).error]
+        theme = "Simply Love" if "Simply Love" in usable else (usable or [None])[0]
+    if not theme or Target(root, theme).error:
+        print("theme %r: %s" % (theme, Target(root, theme).error if theme else NOTHING_PATCHABLE))
+        return 1
     dirs = search_dirs(root, theme)
     if args.text:
         lines = [args.text]
