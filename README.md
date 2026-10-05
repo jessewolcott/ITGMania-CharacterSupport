@@ -59,6 +59,11 @@ python fontpatch.py uninstall   # restore everything, leaves no trace
 `install` is idempotent — run it as often as you like, and again after a theme
 update. See [Surviving updates](#surviving-updates).
 
+Every command takes `--root PATH` (repeatable) to point at a specific install
+instead of searching the usual locations. The path must exist and contain a
+`Themes` folder, otherwise the tool stops with exit code 2 before touching
+anything.
+
 ### Without Python: `Repair-FontPatch.ps1`
 
 ```powershell
@@ -66,12 +71,26 @@ update. See [Surviving updates](#surviving-updates).
 .\Repair-FontPatch.ps1 -Root C:\Games\ITGmania -Theme "Simply Love" -WhatIf
 ```
 
+Works in Windows PowerShell 5.1 and PowerShell 7, with no Python or Pillow.
 Moves backups left by older versions out of the theme's `Fonts` folder (they
 caused `RageBitmapTexture: ... unknown file format` on launch), then checks
 each theme: generated pages present, unchanged and valid PNGs, import lines
 intact, and no stray file next to any font that the engine would try to load
 as a texture. It reports; regenerating pages still needs `fontpatch.py install`.
-Exits non-zero if anything is wrong.
+
+`-Root` is validated like `--root` (exit 2). `-WhatIf` shows what would move
+without changing anything. Exits 1 if any check fails.
+
+### Game won't launch: `unknown file format`
+
+```
+RageBitmapTexture: Couldn't load /Themes/Simply Love/Fonts/Common default.ini.fontpatch-bak: unknown file format
+```
+
+Older versions kept their backup next to `Common default.ini`, and the engine
+loads every file starting with a font's name as a texture. Run either
+`python fontpatch.py install` or `.\Repair-FontPatch.ps1`; both move the backup
+to `<itgmania root>/fontpatch-backup/`.
 
 ---
 
@@ -102,7 +121,7 @@ line.
 |---|---|
 | `--scripts vietnamese,thai,korean,chinese` | only install some |
 | `--theme NAME` | only patch one theme (repeatable) |
-| `--root PATH` | point at a specific ITGmania install (repeatable, any command). Must exist and contain `Themes\`, or the tool stops with exit code 2 before touching anything |
+| `--root PATH` | point at a specific ITGmania install (repeatable, validated — see above) |
 | `--thai-font` / `--korean-font` / `--chinese-font` | use a specific TTF/OTF |
 | `--korean-oversample` / `--chinese-oversample` | texture scale, default auto |
 | `--no-extra-scripts` | skip wiring up the shipped Thai/Korean/CJK pages |
@@ -112,8 +131,9 @@ Installing a subset does not disturb what is already installed.
 ### `verify`
 
 Re-checks that the pages exist, that the import line is still present, that
-every glyph is reachable, and that nothing in your song library is still
-uncovered. Exits non-zero if anything is wrong.
+every glyph is reachable, that nothing in your song library is still
+uncovered, and that no old backup is left beside `Common default.ini`. Exits
+non-zero if anything is wrong.
 
 ```
   [BAD] Simply Love   vietnamese import lost (theme updated?); 94 glyph(s) unreachable
@@ -136,8 +156,13 @@ With no `--text` it renders every non-ASCII string in your song library.
 
 ### `uninstall`
 
-Restores each patched file from its backup and deletes every generated page.
-Verified to leave zero files and zero import references behind.
+Restores each patched file from its backup and deletes every generated page,
+the backups and the manifest. Verified to leave zero files and zero import
+references behind.
+
+The backup is taken on first install and never refreshed, so after a theme
+update `uninstall` restores the *pre-update* `Common default.ini`. Reinstall
+the theme afterwards if that matters.
 
 ---
 
@@ -239,8 +264,10 @@ python fontpatch.py verify    # says exactly which imports were lost
 python fontpatch.py install   # re-applies them
 ```
 
-`install` always re-patches from the backup rather than the current file, so it
-replaces cleanly instead of stacking duplicate imports.
+`.\Repair-FontPatch.ps1` gives the same lost-import report without Python.
+
+`install` adds only the imports that are missing, so it never stacks
+duplicates, and it patches the updated file rather than restoring the old one.
 
 ---
 
@@ -277,6 +304,8 @@ replaces cleanly instead of stacking duplicate imports.
 | `compose.py` | Vietnamese compositor (builds from the theme's own font) |
 | `ttfgen.py` | Thai / Korean / Chinese renderers (build from a TTF) |
 | `fontspec.py` | shared font spec → `.ini` + `.png` writer |
+| `Repair-FontPatch.ps1` | PowerShell backup repair + font check, no Python needed |
+| `requirements.txt` | Pillow, optional fonttools |
 | `llm/` | deep technical documentation |
 
 If you are modifying this tool — or pointing an LLM at it — start with

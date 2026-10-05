@@ -12,6 +12,13 @@ either a usable theme or an existing manifest. The user data directory
 (`%APPDATA%\ITGmania`) usually has an empty `Themes/`; skipping it stops
 `verify` reporting a spurious failure there.
 
+An explicit `--root` is validated in `main()` before any command runs:
+`root_error()` rejects a path that does not exist, is not a directory, or has
+no `Themes/`. Every bad root is reported and the tool exits with code 2 without
+touching anything. This runs before the Pillow check, which is why `compose`
+(it imports Pillow) is imported lazily inside `script_chars()` and
+`_build_spec()` rather than at module top.
+
 For each theme, `Target` resolves two things through that theme's search path
 (`<theme>/Fonts`, then `_fallback/Fonts`):
 
@@ -92,8 +99,14 @@ Fonts/_fontpatch chinese ... .png
 The backup goes to `<root>/fontpatch-backup/<path of Common default>`, never
 beside the original: `Font::GetFontPaths` globs `<name>*` and loads every
 non-`.ini` hit as a texture page, so `Common default.ini.fontpatch-bak` in
-`Fonts/` fails with "RageBitmapTexture: ... unknown file format" on launch.
-`install` migrates and deletes such a file left by older versions.
+`Fonts/` fails with "RageBitmapTexture: ... unknown file format" on launch
+([page discovery](01-engine-internals.md#page-discovery)).
+
+Older versions did write it there. `install` migrates such a file: if no backup
+exists at the new location it copies the legacy one there (it is the pristine
+copy, unlike the already-patched `Common default`), then deletes it from
+`Fonts/`. `uninstall` accepts either location, and `verify` reports a legacy
+backup that is still present.
 
 `fontspec.write()` deletes any stale `_fontpatch <script>*.png` whose filename
 no longer matches, so a regeneration at different geometry cannot leave an
@@ -107,13 +120,20 @@ Because Simply Love's Vietnamese page is composited from Miso, and
 
 ## Idempotency
 
-`install` **always re-patches from the backup**, never
-from the current file. The backup is created on first install and never
-overwritten. Consequences:
+`install` patches the **current** `Common default` in place. Idempotency comes
+from `patch_import()`, which parses the existing comma list and does nothing
+when the entry is already present. The backup is copied on first install and
+never overwritten. Consequences:
 
 - repeated installs cannot stack duplicate imports;
 - a half-finished run is recoverable by running it again;
-- the backup is always the pristine theme file, so `uninstall` is exact.
+- after a theme update reverts the import line, `install` re-adds it to the
+  new file rather than resurrecting the old one.
+
+**Caveat:** because the backup is never refreshed, after a theme update it
+holds the *previous* version of the theme's `Common default`. `uninstall`
+restores that older file. Reinstalling the theme after an uninstall gives a
+clean result.
 
 Installing a subset (`--scripts thai`) merges into the manifest rather than
 replacing it:
@@ -168,13 +188,14 @@ not be built. It is the input to `uninstall` and part of what `verify` checks.
 
 ## `verify`
 
-Four independent checks per entry:
+Five independent checks per entry:
 
 1. every recorded generated file still exists;
 2. the `Common default` still contains each generated font's import;
 3. every glyph of each installed script is reachable through the theme's
    resolved coverage;
-4. nothing in the song library's TITLE / SUBTITLE / ARTIST is still uncovered.
+4. nothing in the song library's TITLE / SUBTITLE / ARTIST is still uncovered;
+5. no legacy `.fontpatch-bak` sits beside `Common default` (it breaks launch).
 
 Check 2 is the one that catches a theme update. Check 4 is the one that
 catches a newly added song using a character outside the generated sets.
@@ -185,9 +206,33 @@ Exit code is non-zero if anything failed, so it is usable in a script.
 
 ## `uninstall`
 
-Restores each `Common default` from its backup, deletes the backup, deletes
-every file recorded in the manifest, then deletes the manifest. Verified to
-leave zero generated files and zero import references.
+Restores each `Common default` from its backup (new location, else the legacy
+one beside it), deletes the backup, deletes every file recorded in the
+manifest, deletes the manifest, then prunes the empty `fontpatch-backup/`
+directories. Verified to leave zero generated files and zero import references.
 
-If the backup is missing it falls back to removing the import entries
-individually, so a partially cleaned install still recovers.
+If no backup exists at either location, `Common default` is left as it is, so
+its import line still names fonts whose files were just deleted. Remove those
+entries by hand, or reinstall the theme.
+
+---
+
+## `Repair-FontPatch.ps1`
+
+A PowerShell companion that needs neither Python nor Pillow, for machines where
+the game fails to launch and Python is not set up. It does not generate pages.
+
+1. **Repairs backups.** Moves every `*.fontpatch-bak` under `Themes/` to
+   `fontpatch-backup/` (deleting it if a backup is already there) and rewrites
+   the manifest's `backup` field. Honours `-WhatIf`.
+2. **Checks each theme:** the resolved `Common default`; stray files that
+   share a font's name prefix and are not `.ini` or an image the engine can
+   load (`.png .jpg .jpeg .gif .bmp`), checked recursively for every font in
+   `Fonts/`; the backup's presence and location; each generated file's
+   existence, PNG signature and sha256 (first 16 hex chars, as the manifest
+   records); every generated and extra import.
+
+`-Root` is validated the same way as `--root` (exit 2). Relative paths resolve
+against the PowerShell location, not the process working directory. It exits
+1 when any check fails, 0 otherwise. Themes sharing `_fallback`'s
+`Common default` are checked once.

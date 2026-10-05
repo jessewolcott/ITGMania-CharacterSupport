@@ -72,6 +72,17 @@ Use it for overhang, not spacing.
 with no matching PNG does nothing; a stale PNG with no section is still
 loaded. Always clean up renamed pages — `fontspec.write()` does.
 
+**Never write a non-page file beside a font.** Anything named `<font>*` that
+is not an `.ini` is loaded as a texture, whatever its extension. Backups,
+temp files and logs go outside `Fonts/`.
+
+**Keep Pillow imports lazy in anything `fontpatch.py` imports at module top.**
+Otherwise a missing Pillow crashes on import, before the friendly
+"needs Pillow" message and before `--root` validation.
+
+**PowerShell variable names are case-insensitive.** `$Manifest` and
+`$manifest` are the same variable; give constants distinct names.
+
 **Preserve line endings.** Reading a file with Python's universal newlines and
 writing it back rewrites every EOL. Patch on bytes.
 
@@ -101,6 +112,10 @@ easy to fall into again.
 | `verify` failed on an empty user-data `Themes/` | treated every root as installable | skip roots with no usable theme and no manifest |
 | `scan` reported "0 affected" while artists were broken | only checked `#TITLE` | check TITLE, SUBTITLE and ARTIST |
 | Module name collided with a function | `render.py` vs the CLI's `render()` | renamed the module to `ttfgen.py` |
+| Game failed to launch: `RageBitmapTexture: Couldn't load .../Common default.ini.fontpatch-bak: unknown file format` | backup written beside `Common default.ini`; `GetFontPaths` loads every non-`.ini` `<name>*` file as a page | backups moved to `<root>/fontpatch-backup/`; `install` / `Repair-FontPatch.ps1` migrate old ones |
+| No "needs Pillow" message, just a traceback | `import compose` at module top pulled in Pillow before `main()` ran | import `compose` lazily where it is used |
+| `--root` typo produced confusing output | explicit roots were never checked | `root_error()` / `-Root` validation, exit 2 |
+| PowerShell repair wrote a file named `@{version=2; entries=}` | `$manifest` (data) overwrote `$Manifest` (filename) — PS names are case-insensitive | renamed the constant to `$ManifestFile` |
 
 ---
 
@@ -111,8 +126,8 @@ easy to fall into again.
   redistributed and there is no licensing question. Committing generated pages
   to a repository would reintroduce one — they are `.gitignore`d.
 - **No modification of theme font files.** Only `Common default.ini` is
-  touched, and a backup is kept. Pages are added alongside, never merged into
-  an existing font.
+  touched, and a backup is kept outside the theme. Pages are added alongside,
+  never merged into an existing font.
 - **No size-matched Japanese page.** The shipped JIS pages render larger than
   the Latin text. The Chinese page fixes this for everything it covers
   (GB2312 ∪ Big5 + kana); rare Han outside that still falls back to JIS and

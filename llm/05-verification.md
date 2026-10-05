@@ -120,7 +120,23 @@ print([sorted(e['scripts']) for e in d['entries'].values()])"
 # 4. generators still work across differently-shaped fonts
 #    Miso Light (128px art, res hint), Open Sans (36px, no hint),
 #    Roboto (28x36 non-square), frutiger (implicit cp1252, no breve-a)
+
+# 5. legacy backup migration - nothing may be left beside Common default
+cp "<root>/fontpatch-backup/Themes/<theme>/Fonts/Common default.ini" \
+   "<theme>/Fonts/Common default.ini.fontpatch-bak"
+python fontpatch.py verify          # expect exit 1, "old backup beside Common default"
+python fontpatch.py install         # or: .\Repair-FontPatch.ps1
+ls "<theme>/Fonts/Common default"*  # expect only Common default.ini
+
+# 6. --root validation - must refuse before touching anything
+python fontpatch.py verify --root C:\nope           # expect exit 2
+.\Repair-FontPatch.ps1 -Root C:\nope                # expect exit 2
+.\Repair-FontPatch.ps1 -WhatIf                      # expect only "What if:" lines, no changes
 ```
+
+`Repair-FontPatch.ps1` must keep working in both Windows PowerShell 5.1 and
+PowerShell 7; test it in both, since they differ in path validation errors and
+`-WhatIf` propagation.
 
 Check 4 matters because each of those fonts exercises a different branch of
 `smfont.py`: oversampled art with a `res` hint, 1:1 art, non-square cells, and

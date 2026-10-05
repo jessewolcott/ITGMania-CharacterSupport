@@ -100,6 +100,21 @@ _miso light [alt-stroke] 10x10 (...).png         -> ignored (stroke layer)
 So **a page exists because a PNG exists**, and its `[section]` in the ini only
 supplies metrics. Writing an ini section with no matching PNG does nothing.
 
+The scan is a plain prefix glob, and it does not filter by extension:
+
+```cpp
+// Font::GetFontPaths
+GetDirListing(sPrefix + "*", asFiles, false, true);
+for (...) if (!asFiles[i].Right(4).EqualsNoCase(".ini")) asTexturePathsOut.push_back(asFiles[i]);
+```
+
+**Every file in the folder whose name starts with the font's name and is not
+an `.ini` is handed to `RageBitmapTexture` as a page.** A backup such as
+`Common default.ini.fontpatch-bak` (or a stray `.txt`, `.bak`, `.orig`) beside
+`Common default.ini` fails on launch with
+`RageBitmapTexture: Couldn't load ... unknown file format`. Nothing this repo
+writes may share a font's name prefix inside `Fonts/` unless it is a real page.
+
 `WxH` in the filename is **frames wide × frames high**, not pixels.
 
 ---
