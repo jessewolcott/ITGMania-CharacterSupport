@@ -538,9 +538,11 @@ def cmd_scan(args):
             continue
         print("\n=== %s" % root)
         meta = song_metadata([root])
-        for theme in themes_of(root):
+        for theme in args.theme or themes_of(root):
             t = Target(root, theme)
             if t.error:
+                if args.theme:
+                    print("  %-26s skipped: %s" % (theme, t.error))
                 continue
             cov = t.coverage()
             cols = []
@@ -810,7 +812,8 @@ def main(argv=None):
     try:
         import PIL  # noqa: F401
     except ImportError:
-        print("This tool needs Pillow.\n\n    %s -m pip install Pillow\n"
+        print("This tool needs Pillow.\n\n    %s -m pip install Pillow\n\n"
+              "On Windows, Install-FontPatch.ps1 sets everything up for you.\n"
               % os.path.basename(sys.executable))
         return 2
     return args.func(args)

@@ -18,7 +18,7 @@ Read in order if you are new:
 | [01-engine-internals.md](01-engine-internals.md) | how the engine loads fonts, resolves names, merges imports, and positions glyphs |
 | [02-font-file-format.md](02-font-file-format.md) | the `.ini` + `.png` format exactly as parsed, including undocumented behaviour |
 | [03-generators.md](03-generators.md) | the glyph generation algorithms — compositing, Thai overlays, CJK packing |
-| [04-patch-model.md](04-patch-model.md) | install/verify/uninstall semantics, idempotency, the manifest, backups, `Repair-FontPatch.ps1` |
+| [04-patch-model.md](04-patch-model.md) | install/verify/uninstall semantics, idempotency, the manifest, backups, `Install-FontPatch.ps1`, `Repair-FontPatch.ps1` |
 | [05-verification.md](05-verification.md) | the offline renderer, what it proves and what it cannot |
 | [06-extending.md](06-extending.md) | adding a script, plus a log of bugs already hit and why |
 

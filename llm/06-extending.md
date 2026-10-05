@@ -83,6 +83,17 @@ Otherwise a missing Pillow crashes on import, before the friendly
 **PowerShell variable names are case-insensitive.** `$Manifest` and
 `$manifest` are the same variable; give constants distinct names.
 
+**Windows PowerShell 5.1 strips embedded double quotes from native-command
+arguments.** `python -c 'print("ok")'` arrives as `print(ok)`. Avoid quotes
+inside arguments passed to `python.exe`.
+
+**Don't make a pass-through wrapper an advanced script.** `[CmdletBinding()]`
+or any `[Parameter()]` attribute adds the common parameters, and prefix
+matching then claims the wrapped tool's short flags (`-v`, `-o`).
+
+**The embeddable Python ignores the script's directory.** `sys.path` comes
+only from `python3XX._pth`; list every source directory there.
+
 **Preserve line endings.** Reading a file with Python's universal newlines and
 writing it back rewrites every EOL. Patch on bytes.
 
@@ -122,6 +133,9 @@ easy to fall into again.
 | `preview` said "nothing to render" without Simply Love | default theme hardcoded | fall back to the first patchable theme, report an unknown one |
 | `Repair-FontPatch.ps1 -WhatIf` crashed on 5.1 | `Get-FileHash` honours `-WhatIf` and returns nothing | hash with .NET `SHA256` directly |
 | Message printed `python srcontpatch.py` | `sed` read `\f` in `src\fontpatch` as a form feed | write backslashes from Python, not `sed` replacements |
+| `scan --theme X` still listed every theme | `cmd_scan` looped over `themes_of(root)` | loop over `args.theme or themes_of(root)` |
+| Private runtime failed its self-test on 5.1 | `-c 'print("ok")'` lost its quotes on the way to `python.exe` | quote-free self-test, rely on the exit code |
+| `Install-FontPatch.ps1 preview -o out.png` failed: `-o` ambiguous | `[CmdletBinding()]` added `-OutVariable` / `-OutBuffer` | plain script, extra arguments taken from `$args` |
 | PowerShell repair wrote a file named `@{version=2; entries=}` | `$manifest` (data) overwrote `$Manifest` (filename) — PS names are case-insensitive | renamed the constant to `$ManifestFile` |
 
 ---

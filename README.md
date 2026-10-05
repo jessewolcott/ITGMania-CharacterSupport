@@ -12,6 +12,7 @@ computer, and it can be undone at any time.
 - Works with **Simply Love** and any theme built on ITGmania's `_fallback`
 - Builds the new characters **on your PC** from fonts you already have.
   Windows ships everything it needs
+- **No Python install needed** on Windows: one PowerShell command does it all
 - Changes **one line** per theme and keeps a backup. `uninstall` puts it all back
 
 ---
@@ -28,63 +29,74 @@ First, get the files: on the
 git clone https://github.com/jessewolcott/ITGMania-CharacterSupport.git
 ```
 
-Then choose one of the two paths below.
+Then choose one of the two paths below. Both do exactly the same thing and
+produce identical results.
 
-### Option A: Python (adds the characters)
+### Option A: PowerShell, no Python needed (Windows, recommended)
 
-This is the full tool. Use it to add the missing characters.
-
-1. **Install Python 3** from [python.org](https://www.python.org/downloads/)
-   if you don't already have it. On Windows, tick **"Add python.exe to PATH"**
-   in the installer.
-2. **Open a terminal in the unzipped folder.** On Windows, open the folder in
-   Explorer, then right-click an empty spot and choose **Open in Terminal**.
-3. **Install the one dependency:**
+1. **Open PowerShell in the unzipped folder.** In Explorer, open the folder,
+   right-click an empty spot and choose **Open in Terminal**.
+2. **Install:**
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\Install-FontPatch.ps1
    ```
-   python -m pip install -r requirements.txt
-   ```
-4. **See what's missing** (optional, changes nothing):
-   ```
-   python src/fontpatch.py scan
-   ```
-5. **Install:**
-   ```
-   python src/fontpatch.py install
-   ```
-6. **Check it worked:**
-   ```
-   python src/fontpatch.py verify
+   The first run downloads a private copy of Python (about 40 MB) into a
+   `.runtime` folder inside the tool's folder. It takes a few seconds. Nothing
+   is installed on your system, and later runs reuse it with no download.
+3. **Check it worked:**
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\Install-FontPatch.ps1 verify
    ```
    Every line should say `[OK ]`.
-7. **Launch ITGmania** and look at the music wheel.
-
-If `python` isn't recognised on Windows, use `py` instead (for example
-`py src/fontpatch.py install`).
-
-### Option B: PowerShell (checks and repairs, no Python needed)
-
-`Repair-FontPatch.ps1` can't add characters. It checks an existing install,
-and it fixes the problem where **the game won't start** after an older version
-of this tool ([details below](#the-game-wont-start-unknown-file-format)).
-
-1. **Open PowerShell in the unzipped folder.** In Explorer, right-click an
-   empty spot and choose **Open in Terminal**.
-2. **Do a dry run** to see what it would change, without changing anything:
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\Repair-FontPatch.ps1 -WhatIf
-   ```
-3. **Run it for real:**
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\Repair-FontPatch.ps1
-   ```
-   It ends with `All good.` or a list of problems and what to run next.
+4. **Launch ITGmania** and look at the music wheel.
 
 `-ExecutionPolicy Bypass` lets Windows run a script downloaded from the
 internet for this one run only. It doesn't change any settings.
 
+Every Python command below works the same way through this script: replace
+`python src/fontpatch.py` with
+`powershell -ExecutionPolicy Bypass -File .\Install-FontPatch.ps1`.
+For example, `... scan -v` or `... uninstall`.
+
+<details>
+<summary>What exactly does it download?</summary>
+
+The official embeddable Python 3.13 build from python.org, plus the Pillow and
+fonttools packages from PyPI. The versions are pinned in the script, and every
+file is checked against a pinned SHA-256 hash before use. If a hash doesn't
+match, the download is refused. To remove the private copy, delete the
+`.runtime` folder, or run the script with `-Clean`.
+</details>
+
+### Option B: Python (if you already use it, or on macOS/Linux)
+
+1. **Install Python 3** from [python.org](https://www.python.org/downloads/)
+   if you don't already have it. On Windows, tick **"Add python.exe to PATH"**
+   in the installer.
+2. **Open a terminal in the unzipped folder.**
+3. **Install the one dependency:**
+   ```
+   python -m pip install -r requirements.txt
+   ```
+4. **Install:**
+   ```
+   python src/fontpatch.py install
+   ```
+5. **Check it worked:**
+   ```
+   python src/fontpatch.py verify
+   ```
+6. **Launch ITGmania** and look at the music wheel.
+
+If `python` isn't recognised on Windows, use `py` instead (for example
+`py src/fontpatch.py install`).
+
+Want to see what's missing first without changing anything? Run `scan`
+(`python src/fontpatch.py scan`, or `... Install-FontPatch.ps1 scan`).
+
 ### Is your game somewhere unusual?
 
-Both tools look in the usual places on their own:
+The tool looks in the usual places on its own:
 
 - `C:\Games\ITGmania`
 - `C:\Program Files\ITGmania`
@@ -97,8 +109,8 @@ If yours is somewhere else, point the tool at it. Use the folder that contains
 `Themes`:
 
 ```
+powershell -ExecutionPolicy Bypass -File .\Install-FontPatch.ps1 -Root "D:\Games\ITGmania"
 python src/fontpatch.py install --root "D:\Games\ITGmania"
-.\Repair-FontPatch.ps1 -Root "D:\Games\ITGmania"
 ```
 
 If the folder doesn't exist or has no `Themes` folder, the tool stops and
@@ -110,23 +122,27 @@ tells you why before changing anything.
 
 Updating a theme (for example a new Simply Love release) resets its font
 settings, so the characters go missing again. The pages the tool built are
-still there, so the fix is quick:
+still there, so just run the install again:
 
 ```
-python src/fontpatch.py verify     # shows what the update undid
-python src/fontpatch.py install    # puts it back
+powershell -ExecutionPolicy Bypass -File .\Install-FontPatch.ps1
+python src/fontpatch.py install
 ```
+
+(Use whichever one you used before.) `verify` shows what the update undid.
 
 ---
 
 ## Undo everything
 
 ```
+powershell -ExecutionPolicy Bypass -File .\Install-FontPatch.ps1 uninstall
 python src/fontpatch.py uninstall
 ```
 
 This restores each theme's original font settings and deletes everything the
-tool created. To undo just one theme, add `--theme "Simply Love"`.
+tool created. To undo just one theme, add `-Theme "Simply Love"` (PowerShell)
+or `--theme "Simply Love"` (Python).
 
 ---
 
@@ -140,37 +156,46 @@ RageBitmapTexture: Couldn't load /Themes/Simply Love/Fonts/Common default.ini.fo
 
 An older version of this tool kept its backup inside the theme's `Fonts`
 folder, and ITGmania tries to load anything in there that's named like a font.
-Either of these moves the backup to a safe place
-(`<your ITGmania folder>\fontpatch-backup\`):
+Running the install again moves the backup to a safe place
+(`<your ITGmania folder>\fontpatch-backup\`). So does `Repair-FontPatch.ps1`,
+a small repair-and-check script that doesn't download anything:
 
 ```
-python src/fontpatch.py install
 powershell -ExecutionPolicy Bypass -File .\Repair-FontPatch.ps1
 ```
 
 ### "No ITGmania install found"
 
-Your game isn't in one of the usual places. Add `--root` (Python) or `-Root`
-(PowerShell) with the folder that contains `Themes`. See
+Your game isn't in one of the usual places. Add `-Root` (PowerShell) or
+`--root` (Python) with the folder that contains `Themes`. See
 [Is your game somewhere unusual?](#is-your-game-somewhere-unusual)
+
+### "Setup failed" from Install-FontPatch.ps1
+
+The first run needs internet access to python.org and pypi.org. Check your
+connection, firewall or proxy and run it again. A failed setup never leaves a
+half-finished copy behind. If you see "Checksum mismatch", the download was
+corrupted or tampered with and was refused; try again later.
 
 ### "This tool needs Pillow"
 
-Run `python -m pip install -r requirements.txt` from the unzipped folder.
+You're using Option B. Run `python -m pip install -r requirements.txt` from
+the unzipped folder, or switch to Option A, which handles this for you.
 
 ### "running scripts is disabled on this system"
 
 Windows blocks downloaded scripts by default. Start the script the way the
-quick start shows: `powershell -ExecutionPolicy Bypass -File .\Repair-FontPatch.ps1`.
+quick start shows, with `powershell -ExecutionPolicy Bypass -File ...`.
 
 ### Some characters are still blank
 
-Run `python src/fontpatch.py scan -v`. It lists every title, subtitle and
-artist that still won't display, and which characters are missing. If a whole
-script was skipped during install, the installer says why. Usually no suitable
-font was found, and you can point it at one yourself:
+Run `scan -v`. It lists every title, subtitle and artist that still won't
+display, and which characters are missing. If a whole script was skipped
+during install, the installer says why. Usually no suitable font was found,
+and you can point it at one yourself:
 
 ```
+powershell -ExecutionPolicy Bypass -File .\Install-FontPatch.ps1 install --thai-font "C:\path\to\SomeThaiFont.ttf"
 python src/fontpatch.py install --thai-font "C:\path\to\SomeThaiFont.ttf"
 ```
 
@@ -178,7 +203,10 @@ python src/fontpatch.py install --thai-font "C:\path\to\SomeThaiFont.ttf"
 
 ## Command reference
 
-### Python: `python src/fontpatch.py <command>`
+### `python src/fontpatch.py <command>` or `.\Install-FontPatch.ps1 <command>`
+
+The two are interchangeable. `Install-FontPatch.ps1` runs the same Python
+tool using its private copy of Python, and passes every option through.
 
 | command | what it does |
 |---|---|
@@ -209,7 +237,24 @@ $ python src/fontpatch.py scan -v
         ARTIST    李要红RedLi                      missing: 红
 ```
 
-### PowerShell: `.\Repair-FontPatch.ps1`
+`Install-FontPatch.ps1` also accepts PowerShell-style names for the common
+options, plus one of its own:
+
+| option | same as |
+|---|---|
+| `-Root PATH` | `--root PATH` |
+| `-Theme NAME` | `--theme NAME` |
+| `-Scripts thai,korean` | `--scripts thai,korean` |
+| `-Clean` | delete the private Python copy (`.runtime\`) and exit |
+
+With no command it runs `install`. It works in Windows PowerShell 5.1 and
+PowerShell 7 on Windows.
+
+### `.\Repair-FontPatch.ps1` (check and repair only)
+
+A small standalone script that downloads nothing and doesn't use Python. It
+can't add characters, but it can check an install and move old backups out of
+the way.
 
 | option | meaning |
 |---|---|
@@ -376,7 +421,8 @@ noticeably bigger than the Latin text next to it.
 | `src/compose.py` | Vietnamese builder (uses the theme's own font) |
 | `src/ttfgen.py` | Thai / Korean / Chinese renderers (use a TTF) |
 | `src/fontspec.py` | shared writer for `.ini` + `.png` font pages |
-| `Repair-FontPatch.ps1` | PowerShell backup repair + font check, no Python needed |
+| `Install-FontPatch.ps1` | runs the tool with a private, auto-downloaded Python, so nothing needs installing |
+| `Repair-FontPatch.ps1` | PowerShell backup repair + font check, no download and no Python |
 | `requirements.txt` | Pillow, plus optional fonttools |
 | `llm/` | in-depth technical documentation |
 

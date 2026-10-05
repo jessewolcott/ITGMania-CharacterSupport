@@ -22,3 +22,6 @@ Thumbs.db
 .idea/
 .vscode/
 fontpatch-backup/
+
+# Private Python runtime downloaded by Install-FontPatch.ps1
+.runtime/

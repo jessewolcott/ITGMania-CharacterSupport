@@ -226,6 +226,54 @@ The other entries stay in the manifest, which is deleted only once empty.
 
 ---
 
+## `Install-FontPatch.ps1`
+
+Runs `src/fontpatch.py` with a private Python, so Windows users need nothing
+installed. It is a launcher, not a port: every byte of output comes from the
+same Python code. A round trip on a copy of a real install produced generated
+files byte-identical to a system-Python install.
+
+**First run** builds `.runtime/python-<version>/` next to the script:
+
+1. downloads the official embeddable Python zip for the machine's architecture
+   (`amd64`, `arm64`, or `win32`; `PROCESSOR_ARCHITEW6432` is checked first so
+   32-bit PowerShell on 64-bit Windows still gets the 64-bit build);
+2. resolves each pinned wheel's URL from PyPI's JSON API
+   (`/pypi/<name>/<version>/json`) and downloads it: Pillow (per-architecture
+   wheel) and fonttools (pure-Python `py3-none-any`);
+3. checks **every** file against a SHA-256 pinned in the script and refuses on
+   mismatch;
+4. extracts wheels into `site-packages/` with `ZipFile` (5.1's
+   `Expand-Archive` rejects `.whl`);
+5. rewrites `python3XX._pth`. The embeddable build takes `sys.path` **only**
+   from this file and does not add the script's directory, so it lists
+   `python3XX.zip`, `.`, `site-packages` and `..\..\src`. The paths are
+   relative, so the tool folder can be moved;
+6. self-tests by importing `PIL.ImageFont`, `fontTools.ttLib` and `smfont`,
+   then writes a `.complete` marker.
+
+Any failure deletes the partial runtime, so a later run never trusts a
+half-built one. Later runs see the marker and start immediately. `-Clean`
+deletes `.runtime/`. Bumping `$PythonVersion` changes the directory name, so
+an old runtime is never reused by mistake.
+
+**Arguments.** `-Root`, `-Theme` and `-Scripts` map to `--root`, `--theme` and
+`--scripts`, with relative roots resolved against the PowerShell location. The
+first positional argument is the command (default `install`, checked by
+`ValidateSet`). Everything else is passed through verbatim from `$args`. The
+script is intentionally **not** `[CmdletBinding()]`: that would add
+PowerShell's common parameters, which swallow fontpatch flags (`-v` would
+become `-Verbose` and `-o` would be ambiguous). The exit code is fontpatch's.
+
+**Updating pins:** change the version, then replace the hashes with the ones
+python.org and PyPI publish for the new files. PyPI's JSON lists a `sha256`
+digest for every file. For python.org, download the zips and hash them.
+
+On non-Windows PowerShell 7 it prints the Option B (system Python)
+instructions and exits 1, because the embeddable build is Windows-only.
+
+---
+
 ## `Repair-FontPatch.ps1`
 
 A PowerShell companion that needs neither Python nor Pillow, for machines where

@@ -134,7 +134,19 @@ python src/fontpatch.py verify --root C:\nope           # expect exit 2
 .\Repair-FontPatch.ps1 -WhatIf                      # expect only "What if:" lines, no changes
 ```
 
-`Repair-FontPatch.ps1` must keep working in both Windows PowerShell 5.1 and
+```powershell
+# 7. Install-FontPatch.ps1 - private runtime matches system Python exactly
+#    (run on a COPY of the theme Fonts folders + backups + manifest)
+.\Install-FontPatch.ps1 -Clean
+.\Install-FontPatch.ps1 uninstall -Root <copy>
+.\Install-FontPatch.ps1 -Root <copy>          # first run downloads .runtime\
+# compare every "sha" in <copy>\fontpatch-manifest.json with the original's:
+# all generated files must be byte-identical
+.\Install-FontPatch.ps1 scan -v -Root <copy> -Theme "Simply Love"   # -v reaches fontpatch, only one theme listed
+.\Install-FontPatch.ps1 preview --text "Vết Xước แค่เธอ 르세라핌 爱财龙" -o out.png
+```
+
+`Install-FontPatch.ps1` and `Repair-FontPatch.ps1` must keep working in both Windows PowerShell 5.1 and
 PowerShell 7; test it in both, since they differ in path validation errors and
 `-WhatIf` propagation.
 
